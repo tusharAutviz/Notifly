@@ -35,7 +35,7 @@ def get_password_hash(password):
 
 
 # ---- USER LOGIN ENDPOINT ----
-@router.post("/login/")
+@router.post("/login")
 async def user_login(request: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
     try:
         get_user = db.query(User).filter(User.email == request.username).first()
@@ -91,7 +91,7 @@ async def user_login(request: OAuth2PasswordRequestForm = Depends(), db=Depends(
 
 
 # --- USER REGISTER ENDPOINT ---
-@router.post("/signup/")
+@router.post("/signup")
 async def register_user(request: CreateUser, background_tasks: BackgroundTasks, db=Depends(get_db)):
     try:
         existing_user = db.query(User).filter(User.email == request.email).first()
@@ -197,7 +197,7 @@ async def register_user(request: CreateUser, background_tasks: BackgroundTasks, 
 
 
 # --- VERIFY OTP ENDPOINT ---
-@router.post("/verify-otp/")
+@router.post("/verify-otp")
 async def verify_user_otp(request: VerifyOTP, db=Depends(get_db)):
     try:
         # Check if user exists
@@ -223,7 +223,7 @@ async def verify_user_otp(request: VerifyOTP, db=Depends(get_db)):
 
 
 # --- FORGOT PASSWORD ENDPOINT ---
-@router.post("/forgot-password/")
+@router.post("/forgot-password")
 async def forgot_password(request: ForgotPassword, background_tasks: BackgroundTasks, db=Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == request.email).first()
@@ -249,7 +249,7 @@ async def forgot_password(request: ForgotPassword, background_tasks: BackgroundT
 
 
 # --- NEW PASSWORD ENDPOINT ---
-@router.post("/new-password/")
+@router.post("/new-password")
 async def new_password(request: NewPassword, db=Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == request.email).first()
@@ -290,7 +290,7 @@ async def new_password(request: NewPassword, db=Depends(get_db)):
 
 
 # --- RESEND OTP ENDPOINT ---
-@router.post("/resend-otp/")
+@router.post("/resend-otp")
 async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=Depends(get_db)):
     try:
         # Check if user exists
@@ -323,7 +323,7 @@ async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=D
 
 
 # --- RE-GENERATE ACCESS TOKEN FROM REFRESH TOKEN ENDPOINT ---
-@router.post("/refresh-token/")
+@router.post("/refresh-token")
 async def refresh_token(request: RegenerateAccessToken,db = Depends(get_db)):
     try:
         payload = verify_token(request.refresh_token)
@@ -360,7 +360,7 @@ async def refresh_token(request: RegenerateAccessToken,db = Depends(get_db)):
 
 
 # --- RESET PASSWORD ENDPOINT ---
-@router.patch("/reset-password/")
+@router.patch("/reset-password")
 async def reset_password(request: ResetPassword, db=Depends(get_db), current_user: get_current_user = Depends()):
     try:
         # Verify current password
@@ -387,7 +387,7 @@ async def reset_password(request: ResetPassword, db=Depends(get_db), current_use
 
 
 # --- UPDATE USER DATA BY ADMIN ENDPOINT ---
-@router.patch("/update-user/", summary="update user status by admin")
+@router.patch("/update-user", summary="update user status by admin")
 async def update_user(request: UpdateUser, db=Depends(get_db), current_user: get_current_user = Depends()):
     try:
         if current_user.is_admin:
@@ -413,7 +413,7 @@ async def update_user(request: UpdateUser, db=Depends(get_db), current_user: get
 
 
 # --- SHOW USERS FOR ADMIN ENDPOINT ---
-@router.get("/get-all/", summary="get user to show admin pannel")
+@router.get("/get-all", summary="get user to show admin pannel")
 async def get_all(request: Request, 
     db=Depends(get_db),
     username: Optional[str] = Query(None, description="Filter users by name and email"), 
@@ -479,7 +479,7 @@ async def get_all(request: Request,
 
 
 # --- LOGOUT API ENDPOINT ---
-@router.post("/logout/", summary="Logout api")
+@router.post("/logout", summary="Logout api")
 async def logout(db=Depends(get_db), current_user: get_current_user = Depends()):
     try:
         db.query(RefreshToken).filter(RefreshToken.user_email == current_user.email).update({"blacklisted":True})

@@ -14,7 +14,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # --- CREATE TEMPLATE ENDPOINT ---
-@router.post("/create/", summary="Create a new template")
+@router.post("/create", summary="Create a new template")
 def create_template(request: TemplateCreate, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
 
@@ -36,7 +36,7 @@ def create_template(request: TemplateCreate, db=Depends(get_db), current_user: U
 
 
 # --- GET SPECIFIC TEMPLATE ENDPOINT ---
-@router.get("/get-specific/", summary="Get a specific template")
+@router.get("/get-specific", summary="Get a specific template")
 def get_template(template_id: int, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         template = db.query(Template).filter(Template.id == template_id, Template.user_id == current_user.id).first()
@@ -52,7 +52,7 @@ def get_template(template_id: int, db=Depends(get_db), current_user: User = Depe
 
 
 # --- UPDATE TEMPLATE ENDPOINT ---
-@router.put("/update/", summary="Update a specific template")
+@router.put("/update", summary="Update a specific template")
 def update_template(template_id: int, request: TemplateCreate, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         template = db.query(Template).filter(Template.id == template_id, Template.user_id == current_user.id).first()
@@ -74,7 +74,7 @@ def update_template(template_id: int, request: TemplateCreate, db=Depends(get_db
     
 
 # --- DELETE TEMPLATE ENDPOINT ---
-@router.delete("/delete/", summary="Delete a specific template")
+@router.delete("/delete", summary="Delete a specific template")
 def delete_template(template_id: int, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         template = db.query(Template).filter(Template.id == template_id, Template.user_id == current_user.id).first()
@@ -92,7 +92,7 @@ def delete_template(template_id: int, db=Depends(get_db), current_user: User = D
 
 
 # --- GET ALL TEMPLATES ENDPOINT ---
-@router.get("/get-all/", summary="Get all the templates")
+@router.get("/get-all", summary="Get all the templates")
 async def get_all_templates(request: Request, 
     db=Depends(get_db), 
     current_user: User = Depends(get_current_user),

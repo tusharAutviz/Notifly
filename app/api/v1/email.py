@@ -15,7 +15,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post("/send-email/", summary="Send email to recipients")
+@router.post("/send-email", summary="Send email to recipients")
 async def send_email(request: EmailRequest, background_tasks: BackgroundTasks, db = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         success_count = 0

@@ -20,7 +20,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # --- UPLOAD CONTACTS ENDPOINT ---
-@router.post("/upload/", summary="Upload contacts from a file")
+@router.post("/upload", summary="Upload contacts from a file")
 async def upload_contacts(files: List[UploadFile] = File(...), db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         raw_data = await read_spreadsheet(files)
@@ -64,7 +64,7 @@ async def upload_contacts(files: List[UploadFile] = File(...), db=Depends(get_db
     
 
 # --- CREATE CONTACT ENDPOINT ---
-@router.post("/create/", summary="Create a new contact")
+@router.post("/create", summary="Create a new contact")
 async def create_contact(request: Contacts, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         existing_contact = db.query(Contact).filter(Contact.student_name == request.student_name, Contact.user_id == current_user.id).first()
@@ -90,7 +90,7 @@ async def create_contact(request: Contacts, db=Depends(get_db), current_user: Us
     
 
 # --- UPDATE CONTACT ENDPOINT ---
-@router.put("/update/", summary="Update a contact")
+@router.put("/update", summary="Update a contact")
 async def update_contact(contact_id: int, request: Contacts, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         existing_contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
@@ -114,7 +114,7 @@ async def update_contact(contact_id: int, request: Contacts, db=Depends(get_db),
     
 
 # --- GET ALL CONTACTS ENDPOINT ---
-@router.get("/get-all/", summary="Get all contacts")
+@router.get("/get-all", summary="Get all contacts")
 async def get_all_contacts(request: Request, 
     db=Depends(get_db), 
     current_user: User = Depends(get_current_user),
@@ -179,7 +179,7 @@ async def get_all_contacts(request: Request,
             
 
 # --- DELETE CONTACT ENDPOINT ---
-@router.delete("/delete/", summary="Delete a contact")
+@router.delete("/delete", summary="Delete a contact")
 async def delete_contact(contact_id: int, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
@@ -197,7 +197,7 @@ async def delete_contact(contact_id: int, db=Depends(get_db), current_user: User
 
 
 # --- DOWNLOAD CONTACTS ENDPOINT ---
-@router.get("/download/", summary="Download contacts as Excel")
+@router.get("/download", summary="Download contacts as Excel")
 async def download_contacts(db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         contacts = db.query(Contact).filter(Contact.user_id == current_user.id).all()

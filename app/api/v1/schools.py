@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 # --- CREATE SCHOOL ENDPOINT ---
-@router.post("/create/", summary="Create a new school")
+@router.post("/create", summary="Create a new school")
 async def create_school(request: CreateSchool, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         if current_user.is_admin:
@@ -49,7 +49,7 @@ async def create_school(request: CreateSchool, db=Depends(get_db), current_user:
     
 
 # --- UPDATE SCHOOL ENDPOINT ---
-@router.patch("/update/", summary="Update a specific school")
+@router.patch("/update", summary="Update a specific school")
 async def update_school(school_id: int, request: PartialSchoolUpdate, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         if current_user.is_admin:
@@ -74,7 +74,7 @@ async def update_school(school_id: int, request: PartialSchoolUpdate, db=Depends
 
 
 # --- GET ALL SCHOOLS ENDPOINT ---
-@router.get("/get-all/", summary="Get all schools")
+@router.get("/get-all", summary="Get all schools")
 async def get_all_schools(request: Request, 
     db=Depends(get_db),
     name: Optional[str] = Query(None, description="Filter schools by name"), 
@@ -133,7 +133,7 @@ async def get_all_schools(request: Request,
 
 
 # --- DELETE SCHOOL ENDPOINT ---
-@router.delete("/delete/", summary="Delete a specific school")
+@router.delete("/delete", summary="Delete a specific school")
 async def delete_school(school_id: int, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         if current_user.is_admin:

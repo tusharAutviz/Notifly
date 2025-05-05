@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 # --- GET MESSAGE LOGS ENDPOINT ---
-@router.get("/", summary="Getting message logs.")
+@router.get("/all-logs", summary="Getting message logs.")
 async def get_all_logs(
     request: Request,
     recipient: Optional[str] = Query(None, description="Filter by recipient email or phone"),
