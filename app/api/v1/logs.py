@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user
 from app.db.models.message_log import MessageLog
 from app.db.models.user import User
+from app.utils.validators import create_response
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from fastapi.encoders import jsonable_encoder
@@ -70,21 +71,9 @@ async def get_all_logs(
                     start = start_date
                     end = end_date
                 else:
-                    return JSONResponse(
-                        content={
-                            "status": status.HTTP_400_BAD_REQUEST,
-                            "message": "Start and end dates are required for custom date filter."
-                        },
-                        status_code=status.HTTP_400_BAD_REQUEST
-                    )
+                    return create_response(status.HTTP_400_BAD_REQUEST, "Start and end dates are required for custom range.")
             else:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_400_BAD_REQUEST,
-                        "message": "Invalid date filter."
-                    },
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
+                return create_response(status.HTTP_400_BAD_REQUEST, "Invalid date filter.")
 
             query = query.filter(MessageLog.created_at >= start, MessageLog.created_at <= end, MessageLog.user_id == current_user.id)
 
@@ -110,35 +99,20 @@ async def get_all_logs(
             query_params["limit"] = limit
             previous_url = f"{base_url}?{query_params}"
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Logs retrieved successfully.",
-                "data": {
-                    "result": logs_json,
-                    "pagination": {
-                        "total": total,
-                        "limit": limit,
-                        "offset": offset,
-                        "total_pages": (total + limit - 1) // limit,
-                        "next": next_url,
-                        "previous": previous_url
-                    }
-                }
-            },
-            status_code=status.HTTP_200_OK
-        )
-        
-    except HTTPException as httpExcp:
-        raise httpExcp
+        data = {
+            "result": logs_json,
+            "pagination": {
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "total_pages": (total + limit - 1) // limit,
+                "next": next_url,
+                "previous": previous_url
+            }
+        }
 
+        return create_response(status.HTTP_200_OK, "Logs retrieved successfully.", data=data)
+        
     except Exception as err:
         logger.error(f"Error in get all logs: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))

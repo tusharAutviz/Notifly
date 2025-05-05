@@ -8,7 +8,7 @@ from app.db.models.school import School
 from fastapi.security import OAuth2PasswordRequestForm
 from app.dependencies import get_current_user, get_db
 from app.db.schemas.user import CreateUser, VerifyOTP, ResendOtp, RegenerateAccessToken, ForgotPassword, ResetPassword, NewPassword, UpdateUser
-from app.utils.validators import is_valid_email, is_valid_phone
+from app.utils.validators import is_valid_email, is_valid_phone, create_response
 from app.utils.otp_utils import generate_otp, save_otp_to_user, verify_otp
 from app.utils.email_utils import send_email_background, get_email_template_otp
 from passlib.context import CryptContext
@@ -40,52 +40,22 @@ async def user_login(request: OAuth2PasswordRequestForm = Depends(), db=Depends(
     try:
         get_user = db.query(User).filter(User.email == request.username).first()
         if not get_user:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "User not found. Try to Login"
-                }, 
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "User not found. Try to Login")
 
         if not get_user.is_admin:
             school = db.query(School).filter(School.id == get_user.school_id).first()
             if not school.is_active:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_403_FORBIDDEN,
-                        "message": "School is not active."
-                    }, 
-                    status_code=status.HTTP_403_FORBIDDEN
-                )
+                return create_response(status.HTTP_401_UNAUTHORIZED, "School is not active.")
 
         # Check if user is verified
         if not get_user.otp_verified:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_401_UNAUTHORIZED,
-                    "message": "User is not verified. Please verify your email."
-                }, 
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            return create_response(status.HTTP_401_UNAUTHORIZED, "User is not verified. Please verify your email via otp.")
         
         if not get_user.is_active:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_401_UNAUTHORIZED,
-                    "message": "User is not active."
-                }, 
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            return create_response(status.HTTP_401_UNAUTHORIZED, "User is not active.")
 
         if not verify_password(request.password, get_user.password):
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_401_UNAUTHORIZED,
-                    "message": "Incorrect password."
-                }, 
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            return create_response(status.HTTP_401_UNAUTHORIZED, "Incorrect password.")
 
         # ✅ Generate tokens
         access_token = create_token(
@@ -117,14 +87,7 @@ async def user_login(request: OAuth2PasswordRequestForm = Depends(), db=Depends(
                 }
 
     except Exception as err:
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- USER REGISTER ENDPOINT ---
@@ -133,13 +96,7 @@ async def register_user(request: CreateUser, background_tasks: BackgroundTasks, 
     try:
         existing_user = db.query(User).filter(User.email == request.email).first()
         if existing_user:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "User is already exist please try to login."
-                }, 
-                status_code=status.HTTP_200_OK
-            )
+            return create_response(status.HTTP_200_OK, "User is already exist please try to login.")
 
         hash_password = get_password_hash(request.password)
 
@@ -170,37 +127,16 @@ async def register_user(request: CreateUser, background_tasks: BackgroundTasks, 
                 email_body
             )
 
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "User registered successfully. Please check your email for verification code.",
-                    "data": {
-                        "email": request.email
-                    }
-                },
-                status_code=status.HTTP_200_OK
-            )
+            # Return success response
+            return create_response(status.HTTP_200_OK, "User registered successfully. Please check your email for verification code.", data={"email": request.email})
 
         else:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_429_TOO_MANY_REQUESTS,
-                    "message": "Please enter valid email or mobile no."
-                },
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS
-            )
+            return create_response(status.HTTP_429_TOO_MANY_REQUESTS, "Please enter valid email or mobile no.")
 
 
     except Exception as err:
         logger.error(f"Error in signup: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
     
 
 # --- ADMIN REGISTER ENDPOINT ---
@@ -267,54 +203,23 @@ async def verify_user_otp(request: VerifyOTP, db=Depends(get_db)):
         # Check if user exists
         user = db.query(User).filter(User.email == request.email).first()
         if not user:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "User not found.",
-                },
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"email": request.email})
 
         # Verify OTP
         is_valid = verify_otp(db, request.email, request.otp, settings.OTP_EXPIRY_MINUTES)
 
         if not is_valid:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_400_BAD_REQUEST,
-                    "message": "Invalid OTP or OTP has expired.",
-                },
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return create_response(status.HTTP_400_BAD_REQUEST, "Invalid OTP.")
         
         # Checking type for reset token for reset password
         if type(is_valid) == str:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "Otp verified sucessfully. Now you can reset your password.", 
-                }, 
-                status_code = status.HTTP_200_OK
-            )
+            return create_response(status.HTTP_200_OK, "Otp verified sucessfully. You can reset your password.", data={"reset_token": is_valid})
         
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Otp verified sucessfully."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Otp verified sucessfully.")
    
     except Exception as err:
         logger.error(f"Error in OTP verification: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- FORGOT PASSWORD ENDPOINT ---
@@ -323,13 +228,7 @@ async def forgot_password(request: ForgotPassword, background_tasks: BackgroundT
     try:
         user = db.query(User).filter(User.email == request.email).first()
         if not user:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "User not found.",
-                },
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"email": request.email})
 
         otp = generate_otp()
         save_otp_to_user(db, request.email, otp)
@@ -342,24 +241,11 @@ async def forgot_password(request: ForgotPassword, background_tasks: BackgroundT
             email_body
         )
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Password reset OTP sent to your email."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Password reset OTP sent. Please check your email.")
 
     except Exception as err:
         logger.error(f"Error in forgot password: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- NEW PASSWORD ENDPOINT ---
@@ -368,33 +254,15 @@ async def new_password(request: NewPassword, db=Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == request.email).first()
         if not user:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "User not found.",
-                },
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"email": request.email})
 
         if user.otp != request.reset_token:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_400_BAD_REQUEST,
-                    "message": "Invalid reset token.",
-                },
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return create_response(status.HTTP_400_BAD_REQUEST, "Invalid reset token.")
         
         expiry_time = user.otp_created_at + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
         expiry_time_timezone = expiry_time.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) > expiry_time_timezone:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_400_BAD_REQUEST,
-                    "message": "Reset token has expired.",
-                },
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return create_response(status.HTTP_400_BAD_REQUEST, "Reset token has expired.")
 
         # Update the user's password
         hash_password = get_password_hash(request.password)
@@ -411,24 +279,11 @@ async def new_password(request: NewPassword, db=Depends(get_db)):
 
         db.commit()
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Password has been reset successfully. Please login with your new password."
-            },
-            status_code = status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Password has been changed successfully. Please login with your new password.")
 
     except Exception as err:
         logger.error(f"Error in new password: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- CHANGE PASSWORD ENDPOINT ---
@@ -441,26 +296,11 @@ async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=D
         # Check if user exists
         user = db.query(User).filter(User.email == request.email).first()
         if not user:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "User not found.",
-                    "data": {
-                        "email": request.email
-                    }
-                },
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"email": request.email})
 
         # Check if user is already verified
         if user.otp_verified:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "User is already verified."
-                },
-                status_code=status.HTTP_200_OK
-            )
+            return create_response(status.HTTP_400_BAD_REQUEST, "User is already verified.")
 
         # Generate new OTP
         otp = generate_otp()
@@ -475,27 +315,11 @@ async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=D
             email_body
         )
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Verification code resent. Please check your email.",
-                "data": {
-                    "email": request.email
-                }
-            },
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "OTP resent successfully. Please check your email.")
 
     except Exception as err:
         logger.error(f"Error in resending OTP: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- RE-GENERATE ACCESS TOKEN FROM REFRESH TOKEN ENDPOINT ---
@@ -504,24 +328,12 @@ async def refresh_token(request: RegenerateAccessToken,db = Depends(get_db)):
     try:
         payload = verify_token(request.refresh_token)
         if not payload:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_401_UNAUTHORIZED,
-                    "message": "Invalid refresh token."
-                },
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            return create_response(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token.")
 
         refresh = db.query(RefreshToken).filter(RefreshToken.token == request.refresh_token, RefreshToken.blacklisted == False).first()
 
         if not refresh:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_401_UNAUTHORIZED,
-                    "message": "Invalid refresh token."
-                },
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            return create_response(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token.")
 
         new_access_token = create_token(
             data={"sub": payload.get("sub")},
@@ -540,29 +352,11 @@ async def refresh_token(request: RegenerateAccessToken,db = Depends(get_db)):
         )
         db.add(token_db)
         db.commit()
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Token refreshed successfully.",
-                "data": {
-                    "access_token": new_access_token,
-                    "token_type": "bearer",
-                    "refresh_token": new_refresh_token
-                }
-            },
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Token refreshed successfully.", data={"access_token": new_access_token, "token_type": "bearer", "refresh_token": new_refresh_token})
 
     except Exception as err:
         logger.error(f"Error in refreshing token: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- RESET PASSWORD ENDPOINT ---
@@ -571,13 +365,7 @@ async def reset_password(request: ResetPassword, db=Depends(get_db), current_use
     try:
         # Verify current password
         if not verify_password(request.password, current_user.password):
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_401_UNAUTHORIZED,
-                    "message": "Incorrect password.",
-                },
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            return create_response(status.HTTP_401_UNAUTHORIZED, "Incorrect current password.")
 
         # Update to new password
         hash_password = get_password_hash(request.new_password)
@@ -590,24 +378,11 @@ async def reset_password(request: ResetPassword, db=Depends(get_db), current_use
             token.blacklisted = True
         db.commit()
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Password has been changed successfully. Please login with your new password."
-            },
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Password has been changed successfully. Please login with your new password.")
 
     except Exception as err:
         logger.error(f"Error in reset password: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 
@@ -618,13 +393,7 @@ async def update_user(request: UpdateUser, db=Depends(get_db), current_user: get
         if current_user.is_admin:
             user = db.query(User).filter(User.id == request.user_id).first()
             if not user:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_404_NOT_FOUND,
-                        "message": "User not found."
-                    }, 
-                    status_code=status.HTTP_404_NOT_FOUND
-                )
+                return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"user_email": current_user.email})
                 
             user.is_active = request.is_active
 
@@ -632,31 +401,13 @@ async def update_user(request: UpdateUser, db=Depends(get_db), current_user: get
                 db.query(RefreshToken).filter(RefreshToken.user_email == user.id).update({"blacklisted":True})
 
             db.commit()
-            return JSONResponse(content={
-                    "status": status.HTTP_200_OK,
-                    "message": "User status is updated successfully."
-                }, 
-                status_code=status.HTTP_200_OK
-            )
+            return create_response(status.HTTP_200_OK, "User updated successfully.")
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_401_UNAUTHORIZED,
-                "message": "You are not authorized."
-            }, 
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
+        return create_response(status.HTTP_401_UNAUTHORIZED, "You are not authorized.")
     
     except Exception as err:
         logger.error(f"Error in update user: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 
@@ -684,14 +435,7 @@ async def get_all(request: Request,
             total_users = users_query.with_entities(User.id).count()
             users = users_query.offset(offset).limit(limit).all()
             if not users:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_404_NOT_FOUND,
-                        "message": "No users found."
-                    }, 
-                    status_code=status.HTTP_404_NOT_FOUND
-                )
-            
+                return create_response(status.HTTP_404_NOT_FOUND, "No users found.", data={"user_email": current_user.email})
             json_user = jsonable_encoder(users)
             
             
@@ -714,43 +458,24 @@ async def get_all(request: Request,
                 query_params["limit"] = limit
                 previous_url = f"{base_url}?{query_params}"
 
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "Users retrieved successfully.",
-                    "data": {
-                        "result": json_user,
-                        "pagination": {
-                            "total_users": total_users,
-                            "limit": limit,
-                            "offset": offset,
-                            "total_pages": (total_users + limit - 1) // limit,
-                            "next": next_url,
-                            "previous": previous_url
-                        }
-                    }
-                },
-                status_code=status.HTTP_200_OK
-            )
+            data = {
+                "result": json_user,
+                "pagination": {
+                    "total_users": total_users,
+                    "limit": limit,
+                    "offset": offset,
+                    "total_pages": (total_users + limit - 1) // limit,
+                    "next": next_url,
+                    "previous": previous_url
+                }
+            }
+            return create_response(status.HTTP_200_OK, "Users retrieved successfully.", data=data)
         
-        return JSONResponse(
-            content={
-                "status": status.HTTP_401_UNAUTHORIZED,
-                "message": "You are not authorized."
-            }, 
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
+        return create_response(status.HTTP_401_UNAUTHORIZED, "You are not authorized.")
     
     except Exception as err:
         logger.error(f"Error in get all users: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- LOGOUT API ENDPOINT ---
@@ -759,24 +484,11 @@ async def logout(db=Depends(get_db), current_user: get_current_user = Depends())
     try:
         db.query(RefreshToken).filter(RefreshToken.user_email == current_user.email).update({"blacklisted":True})
         db.commit()
-        return JSONResponse(content={
-                "status": status.HTTP_200_OK,
-                "message": "logout successfully."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Logout successfully.")
     
     except Exception as err:
         logger.error(f"Error in logout: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 # @router.delete("/delete/", summary="Delete a specific user")
 # async def delete_user(id: int, db=Depends(get_db)):

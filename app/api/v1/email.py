@@ -7,6 +7,7 @@ from app.db.models.school import School
 from app.utils.email_utils import send_email_background, extract_template_variables, generate_dynamic_html_email
 from app.dependencies import get_db, get_current_user
 from app.db.schemas.email import EmailRequest
+from app.utils.validators import create_response
 from typing import Dict, Any
 import logging
 
@@ -28,13 +29,7 @@ async def send_email(request: EmailRequest, background_tasks: BackgroundTasks, d
             ).first()
 
             if not template:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_404_NOT_FOUND,
-                        "message": "Template not found."
-                    },
-                    status_code=status.HTTP_404_NOT_FOUND
-                )
+                return create_response(status.HTTP_404_NOT_FOUND, "Template not found.")
 
             placeholders = extract_template_variables(template.content)
 
@@ -53,13 +48,7 @@ async def send_email(request: EmailRequest, background_tasks: BackgroundTasks, d
 
                 missing = set(placeholders) - set(recipient_vars.keys())
                 if missing:
-                    return JSONResponse(
-                        content={
-                            "status": status.HTTP_400_BAD_REQUEST,
-                            "message": f"Missing required variables for {recipient_email}: {', '.join(missing)}"
-                        },
-                        status_code=status.HTTP_400_BAD_REQUEST
-                    )
+                    return create_response(status.HTTP_400_BAD_REQUEST, f"Missing required variables for {recipient_email}: {', '.join(missing)}")
 
                 email_body = generate_dynamic_html_email(template.content, recipient_vars)
 
@@ -98,31 +87,10 @@ async def send_email(request: EmailRequest, background_tasks: BackgroundTasks, d
         db.commit()
 
         if failed_recipients:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_207_MULTI_STATUS,
-                    "message": f"Email sent to {success_count} recipients, failed for {len(failed_recipients)}",
-                    "data": {
-                        "failed_recipients": failed_recipients,
-                    }
-                },
-                status_code=status.HTTP_207_MULTI_STATUS
-            )
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": f"Email sent to {success_count} recipients",
-            },
-            status_code=status.HTTP_200_OK
-        )
+            return create_response(status.HTTP_207_MULTI_STATUS, f"Email sent to {success_count} recipients, failed for {len(failed_recipients)}", data={"failed_recipients": failed_recipients})
+
+        return create_response(status.HTTP_200_OK, f"Email sent to {success_count} recipients")
 
     except Exception as e:
         logger.error(f"Error in send email: {str(e)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(e),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(e))

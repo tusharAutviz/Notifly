@@ -5,7 +5,7 @@ from app.db.models.contact import Contact
 from app.dependencies import get_db, get_current_user
 from app.db.models.user import User
 from app.utils.file_handler import read_spreadsheet, validate_contacts
-from app.utils.validators import is_valid_email, is_valid_phone
+from app.utils.validators import create_response
 from typing import List, Dict
 from app.db.schemas.contact import Contacts
 from fastapi.encoders import jsonable_encoder
@@ -26,13 +26,7 @@ async def upload_contacts(files: List[UploadFile] = File(...), db=Depends(get_db
         raw_data = await read_spreadsheet(files)
         valid_contacts = validate_contacts(raw_data)
         if not valid_contacts:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_400_BAD_REQUEST,
-                    "message": "No valid contacts found in the uploaded files."
-                }, 
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return create_response(status.HTTP_400_BAD_REQUEST, "No valid contacts found in the file.")
         inserted, updated = 0, 0
 
         # Step 2: Upsert to DB
@@ -61,25 +55,12 @@ async def upload_contacts(files: List[UploadFile] = File(...), db=Depends(get_db
                 inserted += 1
         
         db.commit()
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": f"{inserted} contacts inserted, {updated} contacts updated."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Contacts uploaded successfully.", data={"inserted": inserted, "updated": updated})
     
 
     except Exception as err:
         logger.error(f"Error in upload contacts: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
     
 
 # --- CREATE CONTACT ENDPOINT ---
@@ -88,13 +69,7 @@ async def create_contact(request: Contacts, db=Depends(get_db), current_user: Us
     try:
         existing_contact = db.query(Contact).filter(Contact.student_name == request.student_name, Contact.user_id == current_user.id).first()
         if existing_contact:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_400_BAD_REQUEST,
-                    "message": "Contact already exists."
-                }, 
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return create_response(status.HTTP_400_BAD_REQUEST, "Contact already exists.")
         
         new_contact = Contact(
             student_name=request.student_name,
@@ -107,27 +82,11 @@ async def create_contact(request: Contacts, db=Depends(get_db), current_user: Us
         db.add(new_contact)
         db.commit()
         db.refresh(new_contact)
-        return JSONResponse(
-            content={
-                "status": status.HTTP_201_CREATED,
-                "message": "Contact created successfully.",
-                "data": {
-                    "contact_id": new_contact.id
-                }, 
-            }, 
-            status_code=status.HTTP_201_CREATED
-        )
+        return create_response(status.HTTP_201_CREATED, "Contact created successfully.", data={"contact_id": new_contact.id})
 
     except Exception as err:
         logger.error(f"Error in create contact: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
     
 
 # --- UPDATE CONTACT ENDPOINT ---
@@ -136,13 +95,7 @@ async def update_contact(contact_id: int, request: Contacts, db=Depends(get_db),
     try:
         existing_contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
         if not existing_contact:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "Contact not found."
-                }, 
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "Contact not found.")
         
         existing_contact.student_name = request.student_name
         existing_contact.parent_email = request.parent_email
@@ -152,25 +105,12 @@ async def update_contact(contact_id: int, request: Contacts, db=Depends(get_db),
         existing_contact.user_id = current_user.id
         db.commit()
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Contact updated successfully."
-            }, 
-            status_code=200
-        )
+        return create_response(status.HTTP_200_OK, "Contact updated successfully.")
 
 
     except Exception as err:
         logger.error(f"Error in update contact: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
     
 
 # --- GET ALL CONTACTS ENDPOINT ---
@@ -197,13 +137,7 @@ async def get_all_contacts(request: Request,
         contacts = contacts_query.offset(offset).limit(limit).all()
 
         if not contacts:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "No contacts found.",
-                },
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "No contacts found.")
         
         contacts_json = jsonable_encoder(contacts)
 
@@ -226,36 +160,22 @@ async def get_all_contacts(request: Request,
             query_params["limit"] = limit
             previous_url = f"{base_url}?{query_params}"
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Contacts retrieved successfully.",
-                "data": {
-                    "contacts": contacts_json,
-                    "pagination": {
-                        "total_contacts": total_contacts,
-                        "limit": limit,
-                        "offset": offset,
-                        "total_pages": (total_contacts + limit - 1) // limit,
-                        "next": next_url,
-                        "previous": previous_url
-                    }
-                }
-            },
-            status_code=status.HTTP_200_OK
-        )
-    
+        data = {
+            "contacts": contacts_json,
+            "pagination": {
+                "total_contacts": total_contacts,
+                "limit": limit,
+                "offset": offset,
+                "total_pages": (total_contacts + limit - 1) // limit,
+                "next": next_url,
+                "previous": previous_url
+            }
+        }
+        return create_response(status.HTTP_200_OK, "Contacts retrieved successfully.", data=data)
 
     except Exception as err:
         logger.error(f"Error in get all contacts: {str(err)}")
-        return JSONResponse(
-                    content={
-                        "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        "message": "Internal Server Error",
-                        "detail": str(err),
-                    },
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
             
 
 # --- DELETE CONTACT ENDPOINT ---
@@ -264,34 +184,15 @@ async def delete_contact(contact_id: int, db=Depends(get_db), current_user: User
     try:
         contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
         if not contact:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "Contact not found."
-                }, 
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "Contact not found.")
 
         db.delete(contact)
         db.commit()
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Contact deleted successfully."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Contact deleted successfully.")
     
     except Exception as err:
         logger.error(f"Error in delete contact: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 
@@ -301,13 +202,7 @@ async def download_contacts(db=Depends(get_db), current_user: User = Depends(get
     try:
         contacts = db.query(Contact).filter(Contact.user_id == current_user.id).all()
         if not contacts:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "No contacts found."
-                }, 
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "No contacts found.")
         
         # Convert to list of dicts
         contacts_data = [
@@ -344,11 +239,4 @@ async def download_contacts(db=Depends(get_db), current_user: User = Depends(get
 
     except Exception as err:
         logger.error(f"Error in download contacts: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))

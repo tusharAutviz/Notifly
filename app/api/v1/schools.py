@@ -4,6 +4,7 @@ from app.db.models.school import School
 from app.db.schemas.school import CreateSchool,PartialSchoolUpdate
 from app.dependencies import get_db, get_current_user
 from app.db.models.user import User
+from app.utils.validators import create_response
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import asc
 from typing import Optional
@@ -21,13 +22,7 @@ async def create_school(request: CreateSchool, db=Depends(get_db), current_user:
         if current_user.is_admin:
             existing_school = db.query(School).filter(School.school_name == request.school_name.title()).first()
             if existing_school:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_400_BAD_REQUEST,
-                        "message": "School already exists."
-                    }, 
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
+                return create_response(status.HTTP_400_BAD_REQUEST, "School already exists.")
             
             new_school = School(
                 school_name=request.school_name.title(),
@@ -44,35 +39,13 @@ async def create_school(request: CreateSchool, db=Depends(get_db), current_user:
             db.add(new_school)
             db.commit()
             db.refresh(new_school)
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_201_CREATED,
-                    "message": "School created successfully.",
-                    "data": {
-                        "school_id": new_school.id
-                    } 
-                }, 
-                status_code=status.HTTP_201_CREATED
-            )
+            return create_response(status.HTTP_201_CREATED, "School created successfully.", data={"school_id": new_school.id})
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_401_UNAUTHORIZED,
-                "message": "You are not authorized."
-            }, 
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
+        return create_response(status.HTTP_401_UNAUTHORIZED, "You are not authorized.")
 
     except Exception as err:
         logger.error(f"Error in create school: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
     
 
 # --- UPDATE SCHOOL ENDPOINT ---
@@ -82,13 +55,7 @@ async def update_school(school_id: int, request: PartialSchoolUpdate, db=Depends
         if current_user.is_admin:
             school = db.query(School).filter(School.id == school_id).first()
             if not school:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_404_NOT_FOUND,
-                        "message": "School not found."
-                    }, 
-                    status_code=status.HTTP_404_NOT_FOUND
-                )
+                return create_response(status.HTTP_404_NOT_FOUND, "School not found.")
             
             update_data = request.dict(exclude_unset=True)
             
@@ -97,32 +64,13 @@ async def update_school(school_id: int, request: PartialSchoolUpdate, db=Depends
                     setattr(school, field, value.title() if field == "school_name" and value else value)
 
             db.commit()
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "School updated successfully."
-                }, 
-                status_code=status.HTTP_200_OK
-            )
+            return create_response(status.HTTP_200_OK, "School updated successfully.")
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_401_UNAUTHORIZED,
-                "message": "You are not authorized."
-            }, 
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
+        return create_response(status.HTTP_401_UNAUTHORIZED, "You are not authorized.")
 
     except Exception as err:
         logger.error(f"Error in update school: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- GET ALL SCHOOLS ENDPOINT ---
@@ -141,13 +89,7 @@ async def get_all_schools(request: Request,
         schools = schools_query.offset(offset).limit(limit).all()
         
         if not schools:
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_404_NOT_FOUND,
-                    "message": "No schools found."
-                }, 
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return create_response(status.HTTP_404_NOT_FOUND, "No schools found.")
         
         schools_json = jsonable_encoder(schools)
         total_schools = schools_query.with_entities(School.id).count()
@@ -171,35 +113,23 @@ async def get_all_schools(request: Request,
             query_params["limit"] = limit
             previous_url = f"{base_url}?{query_params}"
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Schools retrieved successfully.",
-                "data": {
-                    "result": schools_json,
-                    "pagination": {
-                        "total_schools": total_schools,
-                        "limit": limit,
-                        "offset": offset,
-                        "total_pages": (total_schools + limit - 1) // limit,
-                        "next": next_url,
-                        "previous": previous_url
-                    }
-                }
-            },
-            status_code=status.HTTP_200_OK
-        )
+        data = {
+            "result": schools_json,
+            "pagination": {
+                "total_schools": total_schools,
+                "limit": limit,
+                "offset": offset,
+                "total_pages": (total_schools + limit - 1) // limit,
+                "next": next_url,
+                "previous": previous_url
+            }
+        }
+
+        return create_response(status.HTTP_200_OK, "Schools retrieved successfully.", data=data)
 
     except Exception as err:
         logger.error(f"Error in get all schools: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- DELETE SCHOOL ENDPOINT ---
@@ -209,40 +139,15 @@ async def delete_school(school_id: int, db=Depends(get_db), current_user: User =
         if current_user.is_admin:
             school = db.query(School).filter(School.id == school_id).first()
             if not school:
-                return JSONResponse(
-                    content={
-                        "status": status.HTTP_404_NOT_FOUND,
-                        "message": "School not found."
-                    }, 
-                    status_code=status.HTTP_404_NOT_FOUND
-                )
+                return create_response(status.HTTP_404_NOT_FOUND, "School not found.")
             
             db.delete(school)
             db.commit()
-            return JSONResponse(
-                content={
-                    "status": status.HTTP_200_OK,
-                    "message": "School deleted successfully."
-                }, 
-                status_code=200
-            )
+            return create_response(status.HTTP_200_OK, "School deleted successfully.")
         
-        return JSONResponse(
-            content={
-                "status": status.HTTP_401_UNAUTHORIZED,
-                "message": "You are not authorized."
-            }, 
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )   
+        return create_response(status.HTTP_401_UNAUTHORIZED, "You are not authorized.")
 
 
     except Exception as err:
         logger.error(f"Error in delete school: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))

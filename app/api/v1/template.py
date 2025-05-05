@@ -5,6 +5,7 @@ from app.db.models.template import Template
 from app.db.schemas.template import TemplateCreate
 from app.dependencies import get_db, get_current_user
 from app.db.models.user import User
+from app.utils.validators import create_response
 from typing import Optional
 import logging
 
@@ -27,27 +28,11 @@ def create_template(request: TemplateCreate, db=Depends(get_db), current_user: U
         db.add(new_template)
         db.commit()
         db.refresh(new_template)
-        return JSONResponse(
-            content={
-                "status": status.HTTP_201_CREATED,
-                "message": "Template created successfully.",
-                "data": {
-                    "template_id": new_template.id
-                } 
-            }, 
-            status_code=status.HTTP_201_CREATED
-        )   
+        return create_response(status.HTTP_201_CREATED, "Template created successfully.", data={"template_id": new_template.id})  
 
     except Exception as err:
         logger.error(f"Error in template creation: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- GET SPECIFIC TEMPLATE ENDPOINT ---
@@ -56,36 +41,14 @@ def get_template(template_id: int, db=Depends(get_db), current_user: User = Depe
     try:
         template = db.query(Template).filter(Template.id == template_id, Template.user_id == current_user.id).first()
         if not template:
-            return JSONResponse(
-            content={
-                "status": status.HTTP_404_NOT_FOUND,
-                "message": "No Template Found",
-            },
-            status_code=status.HTTP_404_NOT_FOUND
-        )
+            return create_response(status.HTTP_404_NOT_FOUND, "No Template Found")
         
         template_json = jsonable_encoder(template)
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Template fetched successfully",
-                "data": {
-                    "result": template_json
-                }
-            }, 
-            status_code=200
-        )
+        return create_response(status.HTTP_200_OK, "Template fetched successfully", data={"result": template_json})
                                                                                                                                                                             
     except Exception as err:
         logger.error(f"Error in get specific template: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- UPDATE TEMPLATE ENDPOINT ---
@@ -94,13 +57,7 @@ def update_template(template_id: int, request: TemplateCreate, db=Depends(get_db
     try:
         template = db.query(Template).filter(Template.id == template_id, Template.user_id == current_user.id).first()
         if not template:
-            return JSONResponse(
-            content={
-                "status": status.HTTP_404_NOT_FOUND,
-                "message": "No Template Found",
-            },
-            status_code=status.HTTP_404_NOT_FOUND
-        )
+            return create_response(status.HTTP_404_NOT_FOUND, "No Template Found")
         
         template.name = request.name
         template.content = request.content
@@ -109,24 +66,11 @@ def update_template(template_id: int, request: TemplateCreate, db=Depends(get_db
         template.user_id = current_user.id
         db.commit()
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Template updated successfully."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Template updated successfully.")
 
     except Exception as err:
         logger.error(f"Error in update template: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
     
 
 # --- DELETE TEMPLATE ENDPOINT ---
@@ -135,35 +79,16 @@ def delete_template(template_id: int, db=Depends(get_db), current_user: User = D
     try:
         template = db.query(Template).filter(Template.id == template_id, Template.user_id == current_user.id).first()
         if not template:
-            return JSONResponse(
-            content={
-                "status": status.HTTP_404_NOT_FOUND,
-                "message": "No Template Found",
-            },
-            status_code=status.HTTP_404_NOT_FOUND
-        )
+            return create_response(status.HTTP_404_NOT_FOUND, "No Template Found")
         
         db.delete(template)
         db.commit()
 
-        return JSONResponse(
-            content={
-                "status": status.HTTP_200_OK,
-                "message": "Template deleted successfully."
-            }, 
-            status_code=status.HTTP_200_OK
-        )
+        return create_response(status.HTTP_200_OK, "Template deleted successfully.")
     
     except Exception as err:
         logger.error(f"Error in delete template: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
 # --- GET ALL TEMPLATES ENDPOINT ---
@@ -182,13 +107,7 @@ async def get_all_templates(request: Request,
         total_template = templates_query.with_entities(Template.id).count()
         templates = templates_query.offset(offset).limit(limit).all()
         if not templates:
-            return JSONResponse(
-            content={
-                "status": status.HTTP_404_NOT_FOUND,
-                "message": "No Template Found",
-            },
-            status_code=status.HTTP_404_NOT_FOUND
-        )
+            return create_response(status.HTTP_404_NOT_FOUND, "No Template Found")
         
         template_json = jsonable_encoder(templates)
         base_url = str(request.url).split('?')[0]
@@ -210,32 +129,19 @@ async def get_all_templates(request: Request,
             query_params["limit"] = limit
             previous_url = f"{base_url}?{query_params}"
 
-        return JSONResponse(
-            content={
-                "status": status.status.HTTP_200_OK,
-                "message": "Template fetched succesfully",
-                "data": {
-                    "result": template_json,
-                    "pagination": {
-                        "total_template": total_template,
-                        "limit": limit,
-                        "offset": offset,
-                        "total_pages": (total_template + limit - 1) // limit,
-                        "next": next_url,
-                        "previous": previous_url
-                    }
-                }
-            },
-            status_code=status.HTTP_200_OK
-        )
-    
+        data = {
+            "result": template_json,
+            "pagination": {
+                "total_template": total_template,
+                "limit": limit,
+                "offset": offset,
+                "total_pages": (total_template + limit - 1) // limit,
+                "next": next_url,
+                "previous": previous_url
+            }
+        }
+        return create_response(status.HTTP_200_OK, "Template fetched succesfully", data=data)
+       
     except Exception as err:
         logger.error(f"Error in get all template: {str(err)}")
-        return JSONResponse(
-            content={
-                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "Internal Server Error",
-                "detail": str(err),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
