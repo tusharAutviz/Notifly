@@ -9,7 +9,7 @@ import secrets
 def generate_reset_token():
     return secrets.token_urlsafe(32)  # e.g., 'RANDOM-TOKEN-STRING'
 
-def generate_otp(length: int = 6) -> str:
+def generate_otp(length: int = 4) -> str:
     """Generate a random OTP of specified length"""
     return ''.join(random.choices(string.digits, k=length))
 

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 async def get_all_logs(
     request: Request,
     recipient: Optional[str] = Query(None, description="Filter by recipient email or phone"),
-    status: Optional[bool] = Query(None, description="Filter by message status"),
+    delivery_status: Optional[bool] = Query(None, description="Filter by message status"),
     date_filter: Optional[str] = Query(
         None,
         description="Date filter: today, yesterday, last_7_days, last_month, custom"
@@ -48,8 +48,8 @@ async def get_all_logs(
             query = query.filter(MessageLog.user_id == current_user.id)
 
         # Status filter
-        if status is not None:
-            query = query.filter(MessageLog.status == status, MessageLog.user_id == current_user.id)
+        if delivery_status is not None:
+            query = query.filter(MessageLog.status == delivery_status, MessageLog.user_id == current_user.id)
 
         # Date filter logic
         if date_filter:
@@ -81,7 +81,7 @@ async def get_all_logs(
         total = query.count()
         logs_json = jsonable_encoder(logs)
         base_url = str(request.url).split('?')[0]
-        query_params = request.query_params.copy()
+        query_params = dict(request.query_params)
 
         # Calculate next offset
         next_offset = offset + limit

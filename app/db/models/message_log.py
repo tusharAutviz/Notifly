@@ -16,6 +16,7 @@ class MessageLog(Base, TimestampMixin):
     subject = Column(String, nullable=True)
     content = Column(Text, nullable=False)
     status = Column(Boolean, default=False, index=True)
+    sid = Column(String, nullable=True)
 
     user = relationship("User", back_populates="message_logs")
     

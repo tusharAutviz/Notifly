@@ -24,7 +24,7 @@ async def send_email(request: EmailRequest, background_tasks: BackgroundTasks, d
         for group in request.groups:
             template = db.query(Template).filter(
                 Template.id == group.template_id,
-                Template.type == "email",
+                Template.type == "parent",
                 Template.user_id == current_user.id
             ).first()
 

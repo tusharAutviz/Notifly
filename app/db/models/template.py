@@ -10,7 +10,7 @@ class Template(Base, TimestampMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-    name = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     type = Column(String, default="email")
     subject = Column(String, nullable=True)

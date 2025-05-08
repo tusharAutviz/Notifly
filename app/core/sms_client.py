@@ -28,7 +28,8 @@ def send_sms(to_number: str, message: str) -> dict:
         response = twilio_client.messages.create(
             body=message,
             from_=TWILIO_PHONE_NUMBER,
-            to=to_number
+            to=to_number,
+            status_callback="https://3c7d-112-196-96-42.ngrok-free.app/api/v1/webhook/twilio/sms/status"
         )
         return {
             "sid": response.sid,

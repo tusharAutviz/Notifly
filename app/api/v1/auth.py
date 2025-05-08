@@ -109,6 +109,7 @@ async def register_user(request: CreateUser, background_tasks: BackgroundTasks, 
                 mobile_no=request.mobile_no,
                 otp_verified=False,
                 school_id= request.school_id,
+                role= "Teacher"
             )
             db.add(create_user)
             db.commit()
@@ -254,7 +255,7 @@ async def new_password(request: NewPassword, db=Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == request.email).first()
         if not user:
-            return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"email": request.email})
+            return create_response(status.HTTP_200_OK, "User not found.")
 
         if user.otp != request.reset_token:
             return create_response(status.HTTP_400_BAD_REQUEST, "Invalid reset token.")
@@ -286,11 +287,8 @@ async def new_password(request: NewPassword, db=Depends(get_db)):
         return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
 
 
-# --- CHANGE PASSWORD ENDPOINT ---
-
-
 # --- RESEND OTP ENDPOINT ---
-@router.post("/resend-otp")
+@router.post("/resend-otp", summary="resend otp for first time user")
 async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=Depends(get_db)):
     try:
         # Check if user exists
@@ -301,6 +299,35 @@ async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=D
         # Check if user is already verified
         if user.otp_verified:
             return create_response(status.HTTP_400_BAD_REQUEST, "User is already verified.")
+
+        # Generate new OTP
+        otp = generate_otp()
+        save_otp_to_user(db, request.email, otp)
+
+        # Send OTP email
+        email_body = get_email_template_otp(user.name, otp)
+        send_email_background(
+            background_tasks,
+            "Email Verification",
+            request.email,
+            email_body
+        )
+
+        return create_response(status.HTTP_200_OK, "OTP resent successfully. Please check your email.")
+
+    except Exception as err:
+        logger.error(f"Error in resending OTP: {str(err)}")
+        return create_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error", detail=str(err))
+
+
+# --- RESEND OTP FOR FORGOT PASSWORD ENDPOINT ---
+@router.post("/resend-otp-forgot-password", summary="resend otp for forgot password")
+async def resend_otp(request: ResendOtp, background_tasks: BackgroundTasks, db=Depends(get_db)):
+    try:
+        # Check if user exists
+        user = db.query(User).filter(User.email == request.email).first()
+        if not user:
+            return create_response(status.HTTP_200_OK, "User not found.", data={"email": request.email})
 
         # Generate new OTP
         otp = generate_otp()
@@ -393,7 +420,7 @@ async def update_user(request: UpdateUser, db=Depends(get_db), current_user: get
         if current_user.is_admin:
             user = db.query(User).filter(User.id == request.user_id).first()
             if not user:
-                return create_response(status.HTTP_404_NOT_FOUND, "User not found.", data={"user_email": current_user.email})
+                return create_response(status.HTTP_200_OK, "User not found.")
                 
             user.is_active = request.is_active
 

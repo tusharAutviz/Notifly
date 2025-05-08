@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 class CreateUser(BaseModel):
     name: str
@@ -38,3 +38,11 @@ class ResetPassword(BaseModel):
 class UpdateUser(BaseModel):
     user_id: int
     is_active: bool
+
+class UpdateUserProfile(BaseModel):
+    name: Optional[str] = None
+    mobile_no: Optional[str] = None
+    about: Optional[str] = None
+
+class UpdateSubject(BaseModel):
+    subjects: List[str]

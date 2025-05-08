@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 @router.post("/create", summary="Create a new template")
 def create_template(request: TemplateCreate, db=Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-
+        template_query = db.query(Template).filter(Template.name == request.name, Template.type == request.type, Template.user_id == current_user.id).first()
+        if template_query:
+            return create_response(status.HTTP_400_BAD_REQUEST, "Template already exists.")
+        
         new_template = Template(
             name=request.name,
             content=request.content,

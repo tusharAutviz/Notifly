@@ -5,4 +5,5 @@ from .contacts import router as contacts
 from .template import router as template
 from .schools import router as schools
 from .logs import router as logs
-# from .summary import router as summary
+from .webhook import router as webhook
+from .profile import router as profile
